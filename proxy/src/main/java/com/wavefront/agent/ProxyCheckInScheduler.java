@@ -165,6 +165,7 @@ public class ProxyCheckInScheduler {
                     "Bearer " + multicastingTenantProxyConfig.get(APIContainer.API_TOKEN),
                     proxyConfig.getHostname()
                         + (multicastingTenantList.size() > 1 ? "-multi_tenant" : ""),
+                    proxyConfig.getProxyname(),
                     getBuildVersion(),
                     System.currentTimeMillis(),
                     agentMetricsWorkingCopy,

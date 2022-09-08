@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Proxy configuration (refactored from {@link com.wavefront.agent.AbstractAgent}).
