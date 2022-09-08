@@ -3,7 +3,7 @@ package com.wavefront.agent;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_BATCH_SIZE;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_BATCH_SIZE_EVENTS;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_BATCH_SIZE_HISTOGRAMS;
-import static com.wavefront.agent.data.EntityProperties.DEFAULT_BATCH_SIZE_LOGS;
+import static com.wavefront.agent.data.EntityProperties.DEFAULT_BATCH_SIZE_LOGS_PAYLOAD;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_BATCH_SIZE_SOURCE_TAGS;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_BATCH_SIZE_SPANS;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_BATCH_SIZE_SPAN_LOGS;
@@ -11,9 +11,12 @@ import static com.wavefront.agent.data.EntityProperties.DEFAULT_FLUSH_INTERVAL;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_FLUSH_THREADS_EVENTS;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_FLUSH_THREADS_SOURCE_TAGS;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_MIN_SPLIT_BATCH_SIZE;
+import static com.wavefront.agent.data.EntityProperties.DEFAULT_MIN_SPLIT_BATCH_SIZE_LOGS_PAYLOAD;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_RETRY_BACKOFF_BASE_SECONDS;
 import static com.wavefront.agent.data.EntityProperties.DEFAULT_SPLIT_PUSH_WHEN_RATE_LIMITED;
+import static com.wavefront.agent.data.EntityProperties.MAX_BATCH_SIZE_LOGS_PAYLOAD;
 import static com.wavefront.agent.data.EntityProperties.NO_RATE_LIMIT;
+import static com.wavefront.agent.data.EntityProperties.NO_RATE_LIMIT_BYTES;
 import static com.wavefront.common.Utils.getBuildVersion;
 import static com.wavefront.common.Utils.getLocalHostName;
 import static io.opentracing.tag.Tags.SPAN_KIND;
@@ -43,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang3.ObjectUtils;
 
 /**
@@ -268,8 +270,10 @@ public class ProxyConfig extends Configuration {
 
   @Parameter(
       names = {"--pushFlushMaxLogs"},
-      description = "Maximum allowed logs " + "in a single flush. Default: 50")
-  int pushFlushMaxLogs = DEFAULT_BATCH_SIZE_LOGS;
+      description =
+          "Maximum size of a log payload "
+              + "in a single flush in bytes between 1mb (1048576) and 5mb (5242880). Default: 4mb (4194304)")
+  int pushFlushMaxLogs = DEFAULT_BATCH_SIZE_LOGS_PAYLOAD;
 
   @Parameter(
       names = {"--pushRateLimit"},
@@ -306,8 +310,9 @@ public class ProxyConfig extends Configuration {
 
   @Parameter(
       names = {"--pushRateLimitLogs"},
-      description = "Limit the outgoing logs " + "rate at the proxy. Default: do not throttle.")
-  double pushRateLimitLogs = NO_RATE_LIMIT;
+      description =
+          "Limit the outgoing logs " + "data rate at the proxy. Default: do not throttle.")
+  double pushRateLimitLogs = NO_RATE_LIMIT_BYTES;
 
   @Parameter(
       names = {"--pushRateLimitMaxBurstSeconds"},
@@ -740,6 +745,12 @@ public class ProxyConfig extends Configuration {
               + " listen on for OpenTelemetry/OTLP Protobuf formatted data over HTTP. Binds, by default, to"
               + " none (4318 is recommended).")
   String otlpHttpListenerPorts = "";
+
+  @Parameter(
+      names = {"--otlpResourceAttrsOnMetricsIncluded"},
+      arity = 1,
+      description = "If true, includes OTLP resource attributes on metrics (Default: false)")
+  boolean otlpResourceAttrsOnMetricsIncluded = false;
 
   // logs ingestion
   @Parameter(
@@ -1309,6 +1320,22 @@ public class ProxyConfig extends Configuration {
   String customServiceTags = "";
 
   @Parameter(
+      names = {"--customExceptionTags"},
+      description =
+          "Comma separated list of log tag "
+              + "keys that should be treated as the exception in Wavefront in the absence of a "
+              + "tag named `exception`. Default: exception, error_name")
+  String customExceptionTags = "";
+
+  @Parameter(
+      names = {"--customLevelTags"},
+      description =
+          "Comma separated list of log tag "
+              + "keys that should be treated as the log level in Wavefront in the absence of a "
+              + "tag named `level`. Default: level, log_level")
+  String customLevelTags = "";
+
+  @Parameter(
       names = {"--multicastingTenants"},
       description = "The number of tenants to data " + "points" + " multicasting. Default: 0")
   protected int multicastingTenants = 0;
@@ -1756,6 +1783,10 @@ public class ProxyConfig extends Configuration {
     return otlpHttpListenerPorts;
   }
 
+  public boolean isOtlpResourceAttrsOnMetricsIncluded() {
+    return otlpResourceAttrsOnMetricsIncluded;
+  }
+
   public Integer getFilebeatPort() {
     return filebeatPort;
   }
@@ -1983,6 +2014,39 @@ public class ProxyConfig extends Configuration {
               if (!tagSet.add(x)) {
                 logger.warning(
                     "Duplicate tag " + x + " specified in customServiceTags config setting");
+              }
+            });
+    return new ArrayList<>(tagSet);
+  }
+
+  public List<String> getCustomExceptionTags() {
+    Set<String> tagSet = new LinkedHashSet<>();
+    Splitter.on(",")
+        .trimResults()
+        .omitEmptyStrings()
+        .split(customExceptionTags)
+        .forEach(
+            x -> {
+              if (!tagSet.add(x)) {
+                logger.warning(
+                    "Duplicate tag " + x + " specified in customExceptionTags config setting");
+              }
+            });
+    return new ArrayList<>(tagSet);
+  }
+
+  public List<String> getCustomLevelTags() {
+    // create List of level tags from the configuration string
+    Set<String> tagSet = new LinkedHashSet<>();
+    Splitter.on(",")
+        .trimResults()
+        .omitEmptyStrings()
+        .split(customLevelTags)
+        .forEach(
+            x -> {
+              if (!tagSet.add(x)) {
+                logger.warning(
+                    "Duplicate tag " + x + " specified in customLevelTags config setting");
               }
             });
     return new ArrayList<>(tagSet);
@@ -2229,6 +2293,7 @@ public class ProxyConfig extends Configuration {
           config.getDouble("pushRateLimitSourceTags", pushRateLimitSourceTags);
       pushRateLimitSpans = config.getInteger("pushRateLimitSpans", pushRateLimitSpans);
       pushRateLimitSpanLogs = config.getInteger("pushRateLimitSpanLogs", pushRateLimitSpanLogs);
+      pushRateLimitLogs = config.getInteger("pushRateLimitLogs", pushRateLimitLogs);
       pushRateLimitEvents = config.getDouble("pushRateLimitEvents", pushRateLimitEvents);
       pushRateLimitMaxBurstSeconds =
           config.getInteger("pushRateLimitMaxBurstSeconds", pushRateLimitMaxBurstSeconds);
@@ -2424,6 +2489,9 @@ public class ProxyConfig extends Configuration {
       graphiteDelimiters = config.getString("graphiteDelimiters", graphiteDelimiters);
       otlpGrpcListenerPorts = config.getString("otlpGrpcListenerPorts", otlpGrpcListenerPorts);
       otlpHttpListenerPorts = config.getString("otlpHttpListenerPorts", otlpHttpListenerPorts);
+      otlpResourceAttrsOnMetricsIncluded =
+          config.getBoolean(
+              "otlpResourceAttrsOnMetricsIncluded", otlpResourceAttrsOnMetricsIncluded);
       allowRegex = config.getString("allowRegex", config.getString("whitelistRegex", allowRegex));
       blockRegex = config.getString("blockRegex", config.getString("blacklistRegex", blockRegex));
       opentsdbPorts = config.getString("opentsdbPorts", opentsdbPorts);
@@ -2451,6 +2519,8 @@ public class ProxyConfig extends Configuration {
       splitPushWhenRateLimited =
           config.getBoolean("splitPushWhenRateLimited", splitPushWhenRateLimited);
       customSourceTags = config.getString("customSourceTags", customSourceTags);
+      customLevelTags = config.getString("customLevelTags", customLevelTags);
+      customExceptionTags = config.getString("customExceptionTags", customExceptionTags);
       agentMetricsPointTags = config.getString("agentMetricsPointTags", agentMetricsPointTags);
       ephemeral = config.getBoolean("ephemeral", ephemeral);
       disableRdnsLookup = config.getBoolean("disableRdnsLookup", disableRdnsLookup);
@@ -2648,9 +2718,13 @@ public class ProxyConfig extends Configuration {
               Math.min(
                   Math.min(
                       config.getInteger("pushFlushMaxLogs", pushFlushMaxLogs),
-                      DEFAULT_BATCH_SIZE_LOGS),
+                      MAX_BATCH_SIZE_LOGS_PAYLOAD),
                   (int) pushRateLimitLogs),
-              DEFAULT_MIN_SPLIT_BATCH_SIZE);
+              DEFAULT_MIN_SPLIT_BATCH_SIZE_LOGS_PAYLOAD);
+      pushMemoryBufferLimitLogs =
+          Math.max(
+              config.getInteger("pushMemoryBufferLimitLogs", pushMemoryBufferLimitLogs),
+              pushFlushMaxLogs);
 
       /*
        default value for pushMemoryBufferLimit is 16 * pushFlushMaxPoints, but no more than 25% of

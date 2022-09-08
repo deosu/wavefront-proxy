@@ -1,11 +1,10 @@
 package com.wavefront.agent.api;
 
-import javax.ws.rs.core.Response;
-import java.util.UUID;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.wavefront.api.ProxyV2API;
 import com.wavefront.api.agent.AgentConfiguration;
+import java.util.UUID;
+import javax.ws.rs.core.Response;
 
 /**
  * Partial ProxyV2API wrapper stub that passed proxyCheckin/proxyConfigProcessed calls to the
@@ -40,6 +39,5 @@ public class NoopProxyV2API implements ProxyV2API {
   }
 
   @Override
-  public void proxyError(UUID uuid, String s) {
-  }
+  public void proxyError(UUID uuid, String s) {}
 }

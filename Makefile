@@ -24,12 +24,19 @@ jenkins: .info build-jar build-linux push-linux docker-multi-arch clean
 build-jar: .info
 	mvn -f proxy --batch-mode clean package ${MVN_ARGS}
 	cp proxy/target/${ARTIFACT_ID}-${VERSION}-spring-boot.jar ${out}
+	cp proxy/target/${ARTIFACT_ID}-${VERSION}-jar-with-dependencies.jar ${out}
 
 #####
 # Build single docker image
 #####
 docker: .info .cp-docker
 	docker build -t $(USER)/$(REPO):$(DOCKER_TAG) docker/
+
+#####
+# Build single docker image
+#####
+docker-RHEL: .info .cp-docker
+	podman build -t $(USER)/$(REPO):$(DOCKER_TAG) -f ./docker/Dockerfile-rhel docker/
 
 #####
 # Build multi arch (amd64 & arm64) docker images
@@ -55,6 +62,15 @@ push-linux: .info .prepare-builder
 	docker run -v $(shell pwd)/:/proxy proxy-linux-builder /proxy/pkg/upload_to_packagecloud.sh ${PACKAGECLOUD_USER}/${PACKAGECLOUD_REPO} /proxy/pkg/package_cloud.conf /proxy/out
 
 #####
+# Package for Macos
+#####
+pack-macos:
+	cp ${out}/${ARTIFACT_ID}-${VERSION}-spring-boot.jar macos/wavefront-proxy.jar
+	cd macos && zip ${out}/wfproxy_macos_${VERSION}_${REVISION}.zip *
+	unzip -t ${out}/wfproxy_macos_${VERSION}_${REVISION}.zip
+
+
+#####
 # Run Proxy complex Tests
 #####
 tests: .info .cp-docker
@@ -68,8 +84,8 @@ tests: .info .cp-docker
 	${MAKE} .set_package JAR=docker/wavefront-proxy.jar PKG=docker
 
 .cp-linux:
-	cp ${out}/${ARTIFACT_ID}-${VERSION}-spring-boot.jar pkg/wavefront-proxy.jar
-	${MAKE} .set_package JAR=pkg/wavefront-proxy.jar PKG=linux_rpm_deb
+	cp ${out}/${ARTIFACT_ID}-${VERSION}-jar-with-dependencies.jar pkg/wavefront-proxy.jar
+	# ${MAKE} .set_package JAR=pkg/wavefront-proxy.jar PKG=linux_rpm_deb
 
 clean:
 	docker buildx prune -a -f	
