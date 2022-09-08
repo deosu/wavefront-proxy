@@ -21,11 +21,18 @@ public class NoopProxyV2API implements ProxyV2API {
 
 
   @Override
-  public AgentConfiguration proxyCheckin(UUID proxyId, String authorization, String hostname,
-                                         String proxyname, String version, Long currentMillis, JsonNode agentMetrics,
-                                         Boolean ephemeral) {
-    return wrapped.proxyCheckin(proxyId, authorization, hostname, proxyname, version, currentMillis,
-        agentMetrics, ephemeral);
+  public AgentConfiguration proxyCheckin(
+      UUID proxyId,
+      String authorization,
+      String hostname,
+      String proxyname,
+      String version,
+      Long currentMillis,
+      JsonNode agentMetrics,
+      Boolean ephemeral) {
+    return wrapped.proxyCheckin(
+        proxyId, authorization, hostname, proxyname, version, currentMillis, agentMetrics,
+        ephemeral);
   }
 
   @Override

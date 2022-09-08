@@ -197,16 +197,18 @@ public class RelayPortUnificationHandler extends AbstractHttpOnlyHandler {
       }
 
       try {
-        AgentConfiguration agentConfiguration = apiContainer.getProxyV2APIForTenant(APIContainer.CENTRAL_TENANT_NAME).proxyCheckin(
-                UUID.fromString(request.headers().get("X-WF-PROXY-ID")),
-                "Bearer " + proxyConfig.getToken(),
-                query.get("hostname"),
-                query.get("proxyname"),
-                query.get("version"),
-                Long.parseLong(query.get("currentMillis")),
-                agentMetrics,
-                Boolean.parseBoolean(query.get("ephemeral"))
-        );
+        AgentConfiguration agentConfiguration =
+            apiContainer
+                .getProxyV2APIForTenant(APIContainer.CENTRAL_TENANT_NAME)
+                .proxyCheckin(
+                    UUID.fromString(request.headers().get("X-WF-PROXY-ID")),
+                    "Bearer " + proxyConfig.getToken(),
+                    query.get("hostname"),
+                    query.get("proxyname"),
+                    query.get("version"),
+                    Long.parseLong(query.get("currentMillis")),
+                    agentMetrics,
+                    Boolean.parseBoolean(query.get("ephemeral")));
         JsonNode node = JSON_PARSER.valueToTree(agentConfiguration);
         writeHttpResponse(ctx, HttpResponseStatus.OK, node, request);
       } catch (javax.ws.rs.ProcessingException e) {
